@@ -38,7 +38,15 @@ CARGO_BUILD_FLAGS:append = " --offline"
 B = "${S}"
 
 # nfnetlink has a dependancy to meta-networking
-PACKAGECONFIG ??= "file pcre2 yaml python pcap cap-ng net"
+PACKAGECONFIG ??= "file \
+                   pcre2 \
+                   yaml \
+                   python \
+                   pcap \
+                   cap-ng \
+                   net \
+                   ${@bb.utils.filter('DISTRO_FEATURES', 'seccomp', d)} \
+                   "
 PACKAGECONFIG:append = " ${@bb.utils.contains('DISTRO_FEATURES', 'ptest', 'unittests', '', d)}"
 
 PACKAGECONFIG[pcre2] = "--with-libpcre2-includes=${STAGING_INCDIR} --with-libpcre2-libraries=${STAGING_LIBDIR}, ,libpcre2 ,"
@@ -51,6 +59,7 @@ PACKAGECONFIG[nfq] = "--enable-nfqueue, --disable-nfqueue,libnetfilter-queue,"
 
 PACKAGECONFIG[file] = ",,file, file"
 PACKAGECONFIG[python] = "--enable-python, --disable-python, python3, python3-core"
+PACKAGECONFIG[seccomp] = ""
 PACKAGECONFIG[unittests] = "--enable-unittests, --disable-unittests,"
 
 export logdir = "${localstatedir}/log"
@@ -115,6 +124,10 @@ do_install () {
              -e s:/bin/kill:${base_bindir}/kill:g \
              -e s:/usr/lib:${libdir}:g \
              ${UNPACKDIR}/suricata.service > ${D}${systemd_unitdir}/system/suricata.service
+
+        if ${@bb.utils.contains('PACKAGECONFIG', 'seccomp', 'true', 'false', d)}; then
+            sed -i -e 's/^MemoryDenyWriteExecute=no$/MemoryDenyWriteExecute=yes/' ${D}${systemd_unitdir}/system/suricata.service
+        fi
     fi
 
     # Remove /var/run as it is created on startup
